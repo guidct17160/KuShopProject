@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
 import { CartProvider } from "./context/Cartcontext";
 
@@ -21,15 +21,17 @@ function AppRoutes() {
       {!hideNavbar && <Navbar />}
       <AnimatePresence mode="wait">
         <Routes location={location} key={location.pathname}>
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/intro" element={<Intro />} />
-          <Route path="/home" element={<Home />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/profile" element={<Profile />} />
-          <Route path="/orders" element={<OrderHistory />} />
-          <Route path="/admin" element={<Admin />} />
-        </Routes>
+  <Route path="/" element={<Navigate to="/login" replace />} />
+
+  <Route path="/login" element={<Login />} />
+  <Route path="/register" element={<Register />} />
+  <Route path="/intro" element={<Intro />} />
+  <Route path="/home" element={<Home />} />
+  <Route path="/cart" element={<Cart />} />
+  <Route path="/profile" element={<Profile />} />
+  <Route path="/orders" element={<OrderHistory />} />
+  <Route path="/admin" element={<Admin />} />
+</Routes>
       </AnimatePresence>
     </>
   );

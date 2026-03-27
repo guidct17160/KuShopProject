@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { AnimatePresence } from "framer-motion";
-import { CartProvider } from "./context/Cartcontext";
+import { CartProvider } from "./context/CartContext";
+import { AuthProvider, useAuth } from "./context/AuthContext";
+import { ProductProvider } from "./context/ProductContext";
 
-import Navbar from "./components/Navbar";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Intro from "./pages/Intro";
@@ -11,38 +12,46 @@ import Cart from "./pages/Cart";
 import Profile from "./pages/Profile";
 import OrderHistory from "./pages/OrderHistory";
 import Admin from "./pages/Admin";
+import CategoryPage from "./pages/CategoryPage";
 
 function AppRoutes() {
-  const location = useLocation();
-  const hideNavbar = ["/login", "/register", "/intro", "/cart", "/profile", "/orders", "/admin"].includes(location.pathname);
-
+  const { currentUser } = useAuth();
+  
   return (
-    <>
-      {!hideNavbar && <Navbar />}
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
-  <Route path="/" element={<Navigate to="/login" replace />} />
-
-  <Route path="/login" element={<Login />} />
-  <Route path="/register" element={<Register />} />
-  <Route path="/intro" element={<Intro />} />
-  <Route path="/home" element={<Home />} />
-  <Route path="/cart" element={<Cart />} />
-  <Route path="/profile" element={<Profile />} />
-  <Route path="/orders" element={<OrderHistory />} />
-  <Route path="/admin" element={<Admin />} />
-</Routes>
-      </AnimatePresence>
-    </>
+    <AnimatePresence mode="wait">
+      <Routes>
+        <Route path="/" element={<Navigate to="/login" replace />} />
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/intro" element={<Intro />} />
+        <Route path="/home" element={<Home />} />
+        <Route path="/category/:category" element={<CategoryPage />} />
+        <Route path="/cart" element={<Cart />} />
+        <Route path="/profile" element={<Profile />} />
+        <Route path="/orders" element={<OrderHistory />} />
+        <Route 
+          path="/admin" 
+          element={
+            currentUser?.role === "admin" 
+              ? <Admin /> 
+              : <Navigate to="/home" replace />
+          } 
+        />
+      </Routes>
+    </AnimatePresence>
   );
 }
 
 export default function App() {
   return (
     <BrowserRouter>
-      <CartProvider>
-        <AppRoutes />
-      </CartProvider>
+      <AuthProvider>
+        <ProductProvider>
+          <CartProvider>
+            <AppRoutes />
+          </CartProvider>
+        </ProductProvider>
+      </AuthProvider>
     </BrowserRouter>
   );
 }

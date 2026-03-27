@@ -1,493 +1,525 @@
-import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useState, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import {
-    FiPackage, FiUsers, FiShoppingBag, FiPlus, FiEdit2, FiTrash2,
-    FiArrowLeft, FiImage, FiCheck, FiX, FiChevronDown, FiShield, FiUser
+import { 
+  FiLogOut, FiUsers, FiBox, FiDollarSign, FiShield, FiTag, FiPlus, 
+  FiX, FiCheck, FiTrash2, FiEdit3, FiSearch, FiArrowLeft, FiCamera, FiLock,
+  FiUser, FiChevronRight 
 } from "react-icons/fi";
+import { useNavigate } from "react-router-dom";
+import { useCart } from "../context/CartContext";
+import { useAuth } from "../context/AuthContext";
+import { useProducts } from "../context/ProductContext";
+import Orb from "../components/Orb";
+import {
+  PRIMARY_DARK, PRIMARY, TEXT_MUTED, GOLD, BG_HOME, DIVIDER
+} from "../styles/tokens";
 import logo from "/img/KULOGOpng.png";
 
-// ── Mock Data ──────────────────────────────────────────────
-const mockProducts = [
-    { id: 1, name: "เสื้อ KU Classic – ดำ/เทา",    price: 590, stock: 24, img: null, badge: "MEN" },
-    { id: 2, name: "เสื้อ KU Classic – เขียว",      price: 590, stock: 18, img: null, badge: "WOMEN" },
-    { id: 3, name: "Faculty of Engineering Polo",   price: 299, stock: 35, img: null, badge: "Faculty" },
-    { id: 4, name: "Faculty of Science Jacket",     price: 699, stock: 8,  img: null, badge: "Faculty" },
-    { id: 5, name: "กางเกงนิสิตชาย",                price: 350, stock: 42, img: null, badge: "MEN" },
-];
-
-const mockMembers = [
-    { id: 1, name: "นิสิต เกษตรศาสตร์",  email: "nisit@ku.th",   role: "member", status: "active",   orders: 3 },
-    { id: 2, name: "สมชาย ใจดี",          email: "somchai@ku.th", role: "member", status: "active",   orders: 1 },
-    { id: 3, name: "มานะ รักเรียน",       email: "mana@ku.th",    role: "admin",  status: "active",   orders: 0 },
-    { id: 4, name: "วิชัย เก่งมาก",       email: "wichai@ku.th",  role: "member", status: "inactive", orders: 5 },
-];
-
-const mockOrders = [
-    { id: "ORD-001", member: "นิสิต เกษตรศาสตร์",  email: "nisit@ku.th",   date: "15 มี.ค. 67", total: 1180, status: "delivered",  items: 2 },
-    { id: "ORD-002", member: "สมชาย ใจดี",          email: "somchai@ku.th", date: "20 มี.ค. 67", total: 299,  status: "processing", items: 1 },
-    { id: "ORD-003", member: "วิชัย เก่งมาก",       email: "wichai@ku.th",  date: "22 มี.ค. 67", total: 789,  status: "pending",    items: 1 },
-    { id: "ORD-004", member: "นิสิต เกษตรศาสตร์",  email: "nisit@ku.th",   date: "25 มี.ค. 67", total: 590,  status: "delivered",  items: 1 },
-];
-
-const statusConfig = {
-    pending:    { label: "รอดำเนินการ", color: "text-yellow-400", bg: "bg-yellow-400/10 border-yellow-400/30" },
-    processing: { label: "กำลังจัดส่ง", color: "text-blue-400",  bg: "bg-blue-400/10  border-blue-400/30"  },
-    delivered:  { label: "จัดส่งแล้ว",  color: "text-green-400", bg: "bg-green-400/10 border-green-400/30" },
-};
-
-const tabs = [
-    { key: "products", label: "สินค้า",   icon: <FiPackage size={16} /> },
-    { key: "members",  label: "สมาชิก",   icon: <FiUsers size={16} />   },
-    { key: "orders",   label: "คำสั่งซื้อ", icon: <FiShoppingBag size={16} /> },
-];
-
-// ── Product Modal ──────────────────────────────────────────
-function ProductModal({ product, onClose, onSave }) {
-    const [form, setForm] = useState(
-        product ?? { name: "", price: "", stock: "", badge: "MEN" }
-    );
-
-    return (
-        <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
-            onClick={onClose}
-        >
-            <motion.div
-                initial={{ scale: 0.9, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.9, y: 20 }}
-                transition={{ type: "spring", stiffness: 400, damping: 28 }}
-                className="bg-[#243447] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl"
-                onClick={e => e.stopPropagation()}
-            >
-                <div className="h-1.5 w-full" style={{ background: "linear-gradient(to right, #facc15, #f97316)" }} />
-                <div className="p-6">
-                    <div className="flex justify-between items-center mb-5">
-                        <h3 className="text-white font-black text-lg">{product ? "แก้ไขสินค้า" : "เพิ่มสินค้าใหม่"}</h3>
-                        <button onClick={onClose} className="w-8 h-8 rounded-full bg-[#1e2a3a] flex items-center justify-center text-gray-400 hover:text-white transition"><FiX size={16} /></button>
-                    </div>
-
-                    <div className="space-y-3">
-                        {/* Image upload area */}
-                        <div className="border-2 border-dashed border-gray-600 rounded-2xl h-24 flex items-center justify-center gap-2 text-gray-500 hover:border-yellow-400/50 hover:text-yellow-400 transition cursor-pointer">
-                            <FiImage size={20} />
-                            <span className="text-sm">คลิกเพื่ออัปโหลดรูปสินค้า</span>
-                        </div>
-
-                        <div>
-                            <p className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">ชื่อสินค้า</p>
-                            <input
-                                value={form.name}
-                                onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                                className="w-full px-4 py-2.5 rounded-2xl bg-[#1e2a3a] text-white text-sm outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-600"
-                                placeholder="ชื่อสินค้า"
-                            />
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <p className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">ราคา (฿)</p>
-                                <input
-                                    type="number" value={form.price}
-                                    onChange={e => setForm(p => ({ ...p, price: e.target.value }))}
-                                    className="w-full px-4 py-2.5 rounded-2xl bg-[#1e2a3a] text-white text-sm outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-600"
-                                    placeholder="0"
-                                />
-                            </div>
-                            <div>
-                                <p className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">สต็อก</p>
-                                <input
-                                    type="number" value={form.stock}
-                                    onChange={e => setForm(p => ({ ...p, stock: e.target.value }))}
-                                    className="w-full px-4 py-2.5 rounded-2xl bg-[#1e2a3a] text-white text-sm outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-600"
-                                    placeholder="0"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <p className="text-[11px] text-gray-500 uppercase tracking-widest mb-1">หมวดหมู่</p>
-                            <select
-                                value={form.badge}
-                                onChange={e => setForm(p => ({ ...p, badge: e.target.value }))}
-                                className="w-full px-4 py-2.5 rounded-2xl bg-[#1e2a3a] text-white text-sm outline-none focus:ring-2 focus:ring-yellow-400 border border-gray-600"
-                            >
-                                {["MEN","WOMEN","Faculty","Others"].map(b => <option key={b} value={b}>{b}</option>)}
-                            </select>
-                        </div>
-                    </div>
-
-                    <div className="flex gap-3 mt-5">
-                        <button onClick={onClose} className="flex-1 py-3 rounded-full bg-[#1e2a3a] text-gray-300 font-bold text-sm border border-gray-600 hover:border-gray-400 transition">ยกเลิก</button>
-                        <button
-                            onClick={() => onSave(form)}
-                            className="flex-1 py-3 rounded-full font-black text-sm text-black flex items-center justify-center gap-2 transition"
-                            style={{ background: "linear-gradient(135deg,#facc15,#f97316)", boxShadow: "0 4px 20px rgba(250,204,21,0.3)" }}
-                        >
-                            <FiCheck size={15} /> บันทึก
-                        </button>
-                    </div>
-                </div>
-            </motion.div>
-        </motion.div>
-    );
-}
-
-// ── Main Admin ─────────────────────────────────────────────
 export default function Admin() {
-    const navigate = useNavigate();
-    const [activeTab, setActiveTab] = useState("products");
-    const [products, setProducts] = useState(mockProducts);
-    const [members, setMembers] = useState(mockMembers);
-    const [orders] = useState(mockOrders);
-    const [productModal, setProductModal] = useState(null);
-    const [expandedOrder, setExpandedOrder] = useState(null);
-    const [selectedMember, setSelectedMember] = useState(null);
+  const navigate = useNavigate();
+  const { orders } = useCart();
+  const { users, currentUser, updateRole, updatePassword, updateProfile } = useAuth();
+  const { products: allProducts, addProduct, updateProduct, deleteProduct } = useProducts();
 
-    const handleSaveProduct = (form) => {
-        if (productModal === "new") {
-            setProducts(prev => [...prev, { ...form, id: Date.now(), price: +form.price, stock: +form.stock }]);
-        } else {
-            setProducts(prev => prev.map(p => p.id === productModal.id ? { ...p, ...form, price: +form.price, stock: +form.stock } : p));
-        }
-        setProductModal(null);
-    };
+  const [activeTab, setActiveTab] = useState("dashboard");
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [showProductModal, setShowProductModal] = useState(false);
+  const [viewOrderHistoryFor, setViewOrderHistoryFor] = useState(null);
+  const [viewSingleOrder, setViewSingleOrder] = useState(null);
+  const [editingProduct, setEditingProduct] = useState(null);
+  const productFileInputRef = useRef(null);
+  const [formData, setFormData] = useState({
+    name: "", subtitle: "", price: "", stock: "20", badge: "MEN",
+    img: "/img/nisitshirtmen.png", description: ""
+  });
 
-    const deleteProduct = (id) => setProducts(prev => prev.filter(p => p.id !== id));
+  // Admin Profile State
+  const fileInputRef = useRef(null);
+  const [profileData, setProfileData] = useState({
+    firstName: currentUser?.firstName || "Admin",
+    lastName: currentUser?.lastName || "System",
+    email: currentUser?.email || "admin@ku.th",
+    avatarUrl: currentUser?.avatarUrl || "https://api.dicebear.com/7.x/avataaars/svg?seed=Admin"
+  });
+  const [editForm, setEditForm] = useState(profileData);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [savingProfile, setSavingProfile] = useState(false);
 
-    const toggleRole = (id) => {
-        setMembers(prev => prev.map(m => m.id === id ? { ...m, role: m.role === "admin" ? "member" : "admin" } : m));
-    };
+  const fields = [
+    { name: "firstName", label: "ชื่อ", type: "text" },
+    { name: "lastName", label: "นามสกุล", type: "text" },
+    { name: "email", label: "อีเมล", type: "email" },
+  ];
 
-    const toggleStatus = (id) => {
-        setMembers(prev => prev.map(m => m.id === id ? { ...m, status: m.status === "active" ? "inactive" : "active" } : m));
-    };
+  const [passwordForm, setPasswordForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [passwordError, setPasswordError] = useState("");
+  const [isEditingPassword, setIsEditingPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
 
-    return (
-        <div className="min-h-screen bg-[#1e2a3a] flex flex-col">
+  const totalSales = orders.reduce((sum, order) => sum + (order.total || 0), 0);
+  const totalStock = allProducts.reduce((sum, p) => sum + (Number(p.stock) || 0), 0);
+  const STATS = [
+    { label: "ยอดขายรวม", value: `฿${totalSales.toLocaleString()}`, icon: <FiDollarSign />, color: GOLD },
+    { label: "สินค้าทั้งหมด", value: `${allProducts.length} ชิ้น (${totalStock} ในคลัง)`, icon: <FiTag />, color: PRIMARY },
+    { label: "สมาชิก", value: users.length.toLocaleString(), icon: <FiUsers />, color: "#3B82F6" },
+  ];
 
-            {/* ── Top bar ── */}
-            <div className="bg-[#243447] border-b border-gray-700/50 px-6 py-4 flex items-center justify-between sticky top-0 z-40">
-                <div className="flex items-center gap-3">
-                    <button onClick={() => navigate("/home")} className="flex items-center gap-1.5 text-gray-400 hover:text-yellow-400 transition text-sm mr-2">
-                        <FiArrowLeft size={16} />
-                    </button>
-                    <img src={logo} alt="logo" className="w-8 h-8" />
-                    <div>
-                        <p className="text-yellow-400 font-black text-sm tracking-widest leading-none">KU SHOP</p>
-                        <p className="text-gray-500 text-[10px]">Admin Panel</p>
-                    </div>
-                </div>
+  const handleEditClick = (p) => {
+    setEditingProduct(p);
+    setFormData({ ...p, price: String(p.price), stock: String(p.stock || 0) });
+    setShowProductModal(true);
+  };
 
-                {/* Stats */}
-                <div className="hidden md:flex items-center gap-6">
-                    {[
-                        { label: "สินค้า", value: products.length, icon: <FiPackage size={14} /> },
-                        { label: "สมาชิก", value: members.length, icon: <FiUsers size={14} /> },
-                        { label: "คำสั่งซื้อ", value: orders.length, icon: <FiShoppingBag size={14} /> },
-                    ].map(s => (
-                        <div key={s.label} className="flex items-center gap-2 text-sm">
-                            <span className="text-yellow-400">{s.icon}</span>
-                            <span className="text-white font-black">{s.value}</span>
-                            <span className="text-gray-500">{s.label}</span>
+  const handleSaveProduct = (e) => {
+    e.preventDefault();
+    const data = { ...formData, price: Math.max(0, Number(formData.price)), stock: Math.max(0, Number(formData.stock)) };
+    if (editingProduct) updateProduct({ ...editingProduct, ...data });
+    else addProduct(data);
+    setShowProductModal(false);
+    setEditingProduct(null);
+  };
+
+  const handlePromote = (id) => updateRole(id, "admin");
+  const handleDemote = (id) => updateRole(id, "user");
+  const isHeadAdmin = currentUser?.email === "admin@ku.th";
+
+  const handleEditProfileClick = () => { setEditForm(profileData); setIsEditingProfile(true); };
+  const handleCancelProfileClick = () => { setIsEditingProfile(false); };
+  const handleChange = (e) => { setEditForm({ ...editForm, [e.target.name]: e.target.value }); };
+  const handleSaveProfile = async () => {
+    setSavingProfile(true);
+    await new Promise(r => setTimeout(r, 800));
+    setProfileData(editForm);
+    if (updateProfile) updateProfile(editForm);
+    setIsEditingProfile(false);
+    setSavingProfile(false);
+  };
+
+  const handleImageClick = () => { if (isEditingProfile && fileInputRef.current) fileInputRef.current.click(); };
+  const handleImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEditForm({ ...editForm, avatarUrl: URL.createObjectURL(file) });
+  };
+
+  const handleProductImageUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFormData({ ...formData, img: URL.createObjectURL(file) });
+  };
+
+  const handleSavePassword = async () => {
+    setPasswordError("");
+    const actualPassword = currentUser?.password || "password";
+    if (passwordForm.currentPassword !== actualPassword) return setPasswordError("รหัสผ่านปัจจุบันไม่ถูกต้อง");
+    if (passwordForm.newPassword !== passwordForm.confirmPassword) return setPasswordError("รหัสผ่านใหม่ไม่ตรงกัน");
+    if (passwordForm.newPassword.length < 6) return setPasswordError("รหัสผ่านใหม่ต้องมีอย่างน้อย 6 ตัวอักษร");
+
+    setSavingPassword(true);
+    await new Promise(r => setTimeout(r, 800));
+    if (updatePassword) updatePassword(passwordForm.newPassword);
+    alert("อัปเดตรหัสผ่านสำเร็จ!");
+    setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+    setIsEditingPassword(false);
+    setSavingPassword(false);
+  };
+  
+  const resetForm = () => setFormData({ name: "", subtitle: "", price: "", stock: "20", badge: "MEN", img: "/img/nisitshirtmen.png", description: "" });
+
+  return (
+    <div className="fixed inset-0 p-4 md:p-8 overflow-hidden flex flex-col" style={{ background: BG_HOME }}>
+      <style>{`.hide-scrollbar::-webkit-scrollbar { display: none; }`}</style>
+      
+      {/* Background Orbs */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden z-0">
+        <Orb style={{ width: 580, height: 580, top: "-120px", right: "-100px", background: "radial-gradient(circle,rgba(0,120,60,0.55) 0%,rgba(0,100,50,0.25) 50%,transparent 75%)" }} anim={{ x: [0, 20, 0], y: [0, -16, 0] }} />
+        <Orb style={{ width: 420, height: 420, bottom: "-5%", left: "-5%", background: "radial-gradient(circle,rgba(245,197,24,0.55) 0%,rgba(230,176,0,0.25) 50%,transparent 75%)" }} anim={{ x: [0, -12, 0], y: [0, 14, 0] }} />
+      </div>
+
+      <div className="relative flex-1 rounded-[40px] border border-white/50 shadow-2xl overflow-y-auto hide-scrollbar z-10 scroll-smooth bg-white/15 backdrop-blur-[40px] flex flex-col">
+         
+         {/* Admin Topbar */}
+         <div className="px-10 py-8 flex justify-between items-center bg-white/40 border-b border-white/20">
+            <div className="flex items-center gap-6">
+               <button onClick={() => navigate("/home")} className="w-10 h-10 rounded-full bg-white flex items-center justify-center hover:bg-black/5 transition-colors shadow-sm"><FiArrowLeft size={18} /></button>
+               <div className="flex items-center gap-3">
+                 <img src={logo} alt="logo" className="w-10 h-10" />
+                 <div><h1 className="text-xl font-black italic tracking-tighter" style={{ color: PRIMARY_DARK }}>ADMIN PANEL</h1><p className="text-[10px] font-black opacity-40 uppercase tracking-widest">KU SHOP COMMAND CENTER</p></div>
+               </div>
+            </div>
+            <div className="flex items-center gap-4">
+               <div className="text-right hidden sm:block">
+                 <p className="text-sm font-black text-primary-dark">{profileData.firstName}</p>
+                 <p className="text-[10px] font-bold text-primary uppercase">{isHeadAdmin ? "Head Administrator" : "Administrator"}</p>
+               </div>
+               <div className="w-10 h-10 rounded-full bg-white border-2 border-primary overflow-hidden shadow-lg"><img src={profileData.avatarUrl} className="w-full h-full object-cover" /></div>
+            </div>
+         </div>
+
+         <div className="flex-1 flex overflow-hidden">
+            {/* Admin Sidebar */}
+            <div className="w-64 bg-white/20 border-r border-white/20 p-6 flex flex-col gap-2">
+               {[
+                 { id: "dashboard", label: "Dashboard", icon: <FiShield /> },
+                 { id: "products", label: "Inventory", icon: <FiBox /> },
+                 { id: "users", label: "Customers", icon: <FiUsers /> },
+                 { id: "profile", label: "Profile", icon: <FiTag /> }
+               ].map(tab => (
+                 <button key={tab.id} onClick={() => setActiveTab(tab.id)} className={`flex items-center gap-4 px-6 py-4 rounded-2xl font-black text-sm transition-all ${activeTab === tab.id ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-105' : 'hover:bg-white/40 opacity-40 hover:opacity-100'}`}>{tab.icon} {tab.label}</button>
+               ))}
+               <div className="mt-auto"><button onClick={() => navigate("/")} className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl border border-red-100 text-red-500 font-black text-sm hover:bg-red-50 transition-all"><FiLogOut /> EXIT ADMIN</button></div>
+            </div>
+
+            {/* Admin Content */}
+            <div className="flex-1 overflow-y-auto p-10 hide-scrollbar">
+               {activeTab === "dashboard" && (
+                 <div className="space-y-10">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      {STATS.map((s, i) => (
+                        <div key={i} className="bg-white/40 backdrop-blur-xl p-8 rounded-[30px] border border-white shadow-xl">
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center mb-6 shadow-sm" style={{ background: s.color + '20', color: s.color }}>{s.icon}</div>
+                          <p className="text-3xl font-black text-primary-dark">{s.value}</p>
+                          <p className="text-[10px] font-black opacity-30 uppercase tracking-widest">{s.label}</p>
                         </div>
-                    ))}
-                </div>
+                      ))}
+                    </div>
+                    <div className="bg-white/40 backdrop-blur-xl p-10 rounded-[40px] border border-white shadow-xl">
+                      <h3 className="text-2xl font-black italic tracking-tighter mb-8" style={{ color: PRIMARY_DARK }}>RECENT <span className="text-primary-dark opacity-30">TRANSACTIONS</span></h3>
+                      {orders.length > 0 ? (
+                        <div className="space-y-4">
+                          {orders.map(order => {
+                             const user = users.find(u => u.id === order.userId);
+                             const customerName = order.customerName || (user ? `${user.firstName} ${user.lastName}` : (order.userId === "guest" ? "Guest User" : "Deleted User"));
+                             const customerEmail = order.customerEmail || user?.email;
+                             return (
+                               <div key={order.id} className="bg-white/60 p-6 rounded-3xl border border-white/80 shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:bg-white/90 transition-colors">
+                                 <div>
+                                   <div className="flex items-center gap-3 mb-4">
+                                     <span className="px-3 py-1 bg-gold/20 text-gold-dark rounded-full text-[10px] font-black uppercase tracking-widest leading-none">{order.status}</span>
+                                      <span className="text-xs font-black text-black/40">#{order.id}</span>
+                                      <span className="text-xs font-bold text-black/40">• {order.date}</span>
+                                   </div>
+                                   <div className="flex items-center gap-3">
+                                     <div className="w-8 h-8 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                                       <FiUser size={14} />
+                                     </div>
+                                     <div>
+                                        <p className="text-sm font-black text-primary-dark leading-none">
+                                          {customerName}
+                                          {customerEmail && <span className="opacity-40 ml-2 font-bold text-[10px]">{customerEmail}</span>}
+                                        </p>
+                                        <p className="text-[10px] font-bold text-black/40 uppercase tracking-widest mt-1">
+                                          {order.items?.length || 0} ITEMS IN ORDER
+                                        </p>
+                                     </div>
+                                   </div>
+                                 </div>
+                                 <div className="text-right w-full md:w-auto flex flex-row md:flex-col justify-between items-center md:items-end mt-4 md:mt-0 pt-4 md:pt-0 border-t md:border-none border-black/5">
+                                   <p className="text-2xl font-black text-primary">฿{order.total?.toLocaleString()}</p>
+                                   <button onClick={() => setViewSingleOrder(order)} className="md:mt-2 px-4 py-2 bg-black/5 hover:bg-black/10 rounded-full text-[10px] font-black text-primary-dark uppercase tracking-widest transition-colors cursor-pointer flex items-center gap-2">
+                                     View Details <FiChevronRight size={12} />
+                                   </button>
+                                 </div>
+                               </div>
+                             );
+                          })}
+                        </div>
+                      ) : (
+                        <div className="h-40 flex items-center justify-center italic opacity-30 font-black">NO RECENT ORDERS</div>
+                      )}
+                    </div>
+                 </div>
+               )}
 
-                <div className="flex items-center gap-2 bg-yellow-400/10 border border-yellow-400/30 px-3 py-1.5 rounded-full">
-                    <FiShield size={13} className="text-yellow-400" />
-                    <span className="text-yellow-400 text-xs font-bold">Admin</span>
-                </div>
+               {activeTab === "products" && (
+                 <div className="space-y-8">
+                    <div className="flex justify-between items-center">
+                       <h2 className="text-4xl font-black italic tracking-tighter" style={{ color: PRIMARY_DARK }}>INVENTORY <span className="text-primary-dark opacity-30">PRO</span></h2>
+                       <button onClick={() => { resetForm(); setShowProductModal(true); }} className="px-6 py-3 bg-primary text-white rounded-full font-black text-[10px] shadow-xl shadow-primary/20 flex items-center gap-2"><FiPlus /> ADD PRODUCT</button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                       {allProducts.map(p => (
+                         <div key={p.id} className="bg-white/60 backdrop-blur-xl p-6 rounded-[30px] border border-white shadow-xl flex gap-4 items-center group">
+                            <div className="w-20 h-20 bg-white rounded-2xl p-2 shadow-sm overflow-hidden"><img src={p.img} className="w-full h-full object-contain group-hover:scale-110 transition-transform" /></div>
+                            <div className="flex-1">
+                              <p className="text-xs font-black text-primary-dark uppercase truncate w-32">{p.name}</p>
+                              <p className="text-[10px] font-bold opacity-30 uppercase">{p.badge} • STOCK: {p.stock}</p>
+                              <div className="flex gap-2 mt-4">
+                                <button onClick={() => handleEditClick(p)} className="p-2 bg-black/5 hover:bg-black/10 rounded-lg transition-colors"><FiEdit3 size={14} /></button>
+                                <button onClick={() => deleteProduct(p.id)} className="p-2 bg-red-50 hover:bg-red-100 text-red-400 rounded-lg transition-colors"><FiTrash2 size={14} /></button>
+                              </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
+                 </div>
+               )}
+
+               {activeTab === "users" && (
+                 <div className="space-y-8">
+                    <h2 className="text-4xl font-black italic tracking-tighter" style={{ color: PRIMARY_DARK }}>MEMBERS <span className="text-primary-dark opacity-30">LIST</span></h2>
+                    
+                    {/* Admins Section */}
+                    <div>
+                      <h3 className="text-[10px] font-black italic tracking-[0.2em] uppercase opacity-40 mb-4 ml-4">Administrators</h3>
+                      <div className="bg-white/40 backdrop-blur-xl rounded-[30px] border border-white p-6 shadow-xl space-y-4">
+                        {users.filter(u => u.role === 'admin' || u.email === 'admin@ku.th').map(u => {
+                          const isThisUserHeadAdmin = u.email === "admin@ku.th";
+                          return (
+                            <div key={u.id} className="bg-white/60 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/80 shadow-sm">
+                              <div className="flex items-center gap-4">
+                                <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary bg-white">
+                                  <img src={u.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.firstName}`} className="w-full h-full object-cover" />
+                                </div>
+                                <div>
+                                   <p className="text-sm font-black text-primary-dark">{u.firstName} {u.lastName}</p>
+                                   <span className="text-[10px] font-bold opacity-40">{u.email}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-4">
+                                 <button onClick={() => setViewOrderHistoryFor(u)} className="px-4 py-2 bg-white text-primary-dark border border-black/10 rounded-full text-[10px] font-black hover:scale-105 transition-transform tracking-widest shadow-sm">ORDERS</button>
+                                 <div className={`px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest ${isThisUserHeadAdmin ? 'bg-purple-100 text-purple-700 border border-purple-200' : 'bg-gold/20 text-gold-dark border border-gold/40'}`}>
+                                   {isThisUserHeadAdmin ? "HEAD ADMIN" : "ADMIN"}
+                                 </div>
+                                 {!isThisUserHeadAdmin && isHeadAdmin && (
+                                   <button onClick={() => handleDemote(u.id)} className="px-4 py-2 bg-red-50 text-red-500 rounded-full text-[10px] font-black hover:scale-105 transition-transform tracking-widest border border-red-200">DEMOTE</button>
+                                 )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Regular Users Section */}
+                    <div>
+                      <h3 className="text-[10px] font-black italic tracking-[0.2em] uppercase opacity-40 mb-4 ml-4">Registered Users</h3>
+                      <div className="bg-white/40 backdrop-blur-xl rounded-[30px] border border-white p-6 shadow-xl space-y-4">
+                        {users.filter(u => u.role !== 'admin' && u.email !== 'admin@ku.th').map(u => (
+                          <div key={u.id} className="bg-white/60 p-5 rounded-2xl flex flex-col md:flex-row items-center justify-between gap-4 border border-white/80 shadow-sm">
+                            <div className="flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-full overflow-hidden border-2 border-primary bg-white">
+                                <img src={u.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${u.firstName}`} className="w-full h-full object-cover" />
+                              </div>
+                              <div>
+                                 <p className="text-sm font-black text-primary-dark">{u.firstName} {u.lastName}</p>
+                                 <span className="text-[10px] font-bold opacity-40">{u.email}</span>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                               <button onClick={() => setViewOrderHistoryFor(u)} className="px-4 py-2 bg-white text-primary-dark border border-black/10 rounded-full text-[10px] font-black hover:scale-105 transition-transform tracking-widest shadow-sm">ORDERS</button>
+                               <div className="px-4 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-primary/10 text-primary border border-primary/20">
+                                 USER
+                               </div>
+                               {isHeadAdmin && (
+                                 <button onClick={() => handlePromote(u.id)} className="px-4 py-2 bg-black text-white rounded-full text-[10px] font-black hover:scale-105 transition-transform tracking-widest">PROMOTE</button>
+                               )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                 </div>
+               )}
+
+               {activeTab === "profile" && (
+                 <div className="max-w-3xl space-y-8">
+                    <h2 className="text-4xl font-black italic tracking-tighter mb-8" style={{ color: PRIMARY_DARK }}>ADMIN <span className="text-primary-dark opacity-30">SETTINGS</span></h2>
+                    
+                    <div className="bg-white/40 backdrop-blur-xl rounded-[40px] p-10 border border-white/60 shadow-xl">
+                      <div className="flex items-center justify-between mb-10">
+                        <h3 className="text-xl font-black italic tracking-tight" style={{ color: PRIMARY_DARK }}>GENERAL INFORMATION</h3>
+                        {!isEditingProfile ? (
+                           <button onClick={handleEditProfileClick} className="px-6 py-2.5 bg-white text-primary-dark border border-black/10 rounded-full font-black text-[10px] hover:scale-105 transition-all shadow-sm">EDIT PROFILE</button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button onClick={handleCancelProfileClick} className="px-4 py-2 text-[10px] font-black text-black/40 uppercase">Cancel</button>
+                            <button onClick={handleSaveProfile} className="px-6 py-2.5 bg-primary text-white rounded-full font-black text-[10px] shadow-lg shadow-primary/20">{savingProfile ? "SAVING..." : "SAVE CHANGES"}</button>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex flex-col md:flex-row gap-8 items-start mb-8">
+                        <div className={`relative w-28 h-28 flex-shrink-0 rounded-full border-4 border-white shadow-lg overflow-hidden ${isEditingProfile ? 'cursor-pointer group' : ''}`} onClick={handleImageClick}>
+                          <img src={isEditingProfile ? editForm.avatarUrl : profileData.avatarUrl} alt="Avatar" className="w-full h-full object-cover bg-white" />
+                          {isEditingProfile && <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><FiCamera size={24} /></div>}
+                          <input type="file" ref={fileInputRef} onChange={handleImageUpload} accept="image/*" className="hidden" />
+                        </div>
+                        <div className="w-full grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {fields.map(f => (
+                            <div key={f.name}>
+                              <label className="block text-[10px] font-black text-black/30 uppercase tracking-[0.2em] mb-3 ml-2">{f.label}</label>
+                              {isEditingProfile ? (
+                                <input name={f.name} value={editForm[f.name]} onChange={handleChange} className="w-full bg-white/60 border border-white focus:bg-white rounded-2xl px-6 py-4 text-sm font-bold outline-none transition-all" />
+                              ) : (
+                                <div className="w-full bg-white/30 rounded-2xl px-6 py-4 text-sm font-bold text-primary-dark">{profileData[f.name]}</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-white/40 backdrop-blur-xl rounded-[40px] p-10 border border-white/60 shadow-xl">
+                      <div className="flex items-center justify-between mb-10">
+                        <h3 className="text-xl font-black italic tracking-tight" style={{ color: PRIMARY_DARK }}>SECURITY</h3>
+                        {!isEditingPassword ? (
+                           <button onClick={() => { setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" }); setPasswordError(""); setIsEditingPassword(true); }} className="px-6 py-2.5 bg-white text-primary-dark border border-black/10 rounded-full font-black text-[10px] shadow-sm hover:scale-105 transition-all">CHANGE PASSWORD</button>
+                        ) : (
+                          <div className="flex gap-2">
+                            <button onClick={() => { setIsEditingPassword(false); setPasswordError(""); }} className="px-4 py-2 text-[10px] font-black text-black/40 uppercase">Cancel</button>
+                            <button onClick={handleSavePassword} className="px-6 py-2.5 bg-gold text-primary-dark rounded-full font-black text-[10px] shadow-lg shadow-gold/20">UPDATE PASSWORD</button>
+                          </div>
+                        )}
+                      </div>
+                      {isEditingPassword ? (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                          {passwordError && (
+                            <div className="md:col-span-2 p-4 bg-red-100/90 border border-red-300 text-red-600 rounded-2xl text-xs font-black flex items-center gap-3">
+                              <FiX size={16} />{passwordError}
+                            </div>
+                          )}
+                          <div className="md:col-span-2"><label className="block text-[10px] font-black text-black/30 uppercase tracking-[0.2em] mb-3 ml-2">Current Password</label><input type="password" value={passwordForm.currentPassword} onChange={e => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })} className="w-full bg-white/60 border border-white rounded-2xl px-6 py-4 text-sm font-bold outline-none" /></div>
+                          <div className="col-span-1"><label className="block text-[10px] font-black text-black/30 uppercase tracking-[0.2em] mb-3 ml-2">New Password</label><input type="password" value={passwordForm.newPassword} onChange={e => setPasswordForm({ ...passwordForm, newPassword: e.target.value })} className="w-full bg-white/60 border border-white rounded-2xl px-6 py-4 text-sm font-bold outline-none" /></div>
+                          <div className="col-span-1"><label className="block text-[10px] font-black text-black/30 uppercase tracking-[0.2em] mb-3 ml-2">Confirm New Password</label><input type="password" value={passwordForm.confirmPassword} onChange={e => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })} className="w-full bg-white/60 border border-white rounded-2xl px-6 py-4 text-sm font-bold outline-none" /></div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center justify-center p-8 border-2 border-dashed border-black/10 rounded-3xl"><p className="text-xs font-bold opacity-30">Your admin account is secure.</p></div>
+                      )}
+                    </div>
+                 </div>
+               )}
             </div>
+         </div>
+      </div>
 
-            {/* ── Tabs ── */}
-            <div className="bg-[#243447] border-b border-gray-700/50 px-6">
-                <div className="flex gap-1">
-                    {tabs.map(tab => (
-                        <button
-                            key={tab.key}
-                            onClick={() => setActiveTab(tab.key)}
-                            className={`flex items-center gap-2 px-4 py-3.5 text-sm font-bold border-b-2 transition-all duration-200 ${
-                                activeTab === tab.key
-                                    ? "border-yellow-400 text-yellow-400"
-                                    : "border-transparent text-gray-400 hover:text-gray-200"
-                            }`}
-                        >
-                            {tab.icon} {tab.label}
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-black ${activeTab === tab.key ? "bg-yellow-400/20 text-yellow-400" : "bg-gray-700 text-gray-400"}`}>
-                                {tab.key === "products" ? products.length : tab.key === "members" ? members.length : orders.length}
-                            </span>
-                        </button>
-                    ))}
+      <AnimatePresence>
+        {showProductModal && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/20 backdrop-blur-sm">
+             <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-xl bg-white rounded-[40px] shadow-2xl overflow-hidden p-10">
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="text-2xl font-black italic">{editingProduct ? "EDIT PRODUCT" : "NEW PRODUCT"}</h3>
+                  <button onClick={() => setShowProductModal(false)} className="w-10 h-10 rounded-full bg-black/5 flex items-center justify-center"><FiX /></button>
                 </div>
-            </div>
-
-            {/* ── Content ── */}
-            <div className="flex-1 p-6 max-w-5xl mx-auto w-full">
-                <AnimatePresence mode="wait">
-
-                    {/* ════ PRODUCTS ════ */}
-                    {activeTab === "products" && (
-                        <motion.div key="products" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }}>
-                            <div className="flex justify-between items-center mb-5">
-                                <h2 className="text-white font-black text-xl">จัดการสินค้า</h2>
-                                <button
-                                    onClick={() => setProductModal("new")}
-                                    className="flex items-center gap-2 px-4 py-2.5 rounded-full font-bold text-sm text-black transition"
-                                    style={{ background: "linear-gradient(135deg,#facc15,#f97316)", boxShadow: "0 4px 16px rgba(250,204,21,0.3)" }}
-                                >
-                                    <FiPlus size={15} /> เพิ่มสินค้า
-                                </button>
-                            </div>
-
-                            <div className="space-y-3">
-                                {products.map((p, i) => (
-                                    <motion.div
-                                        key={p.id}
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: i * 0.05 }}
-                                        className="bg-[#243447] rounded-2xl px-5 py-4 flex items-center gap-4 border border-gray-700/50"
-                                    >
-                                        {/* Color block แทนรูป */}
-                                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-yellow-400/20 to-orange-400/20 border border-yellow-400/20 flex items-center justify-center flex-shrink-0">
-                                            <FiPackage size={18} className="text-yellow-400/60" />
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white font-bold text-sm truncate">{p.name}</p>
-                                            <div className="flex items-center gap-3 mt-1">
-                                                <span className="text-yellow-400 font-black text-sm">฿{p.price.toLocaleString()}</span>
-                                                <span className="text-gray-500 text-xs">สต็อก {p.stock} ชิ้น</span>
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${p.stock < 10 ? "bg-red-400/10 text-red-400 border border-red-400/30" : "bg-green-400/10 text-green-400 border border-green-400/30"}`}>
-                                                    {p.stock < 10 ? "สต็อกเหลือน้อย" : "พร้อมขาย"}
-                                                </span>
-                                            </div>
-                                        </div>
-
-                                        <span className="text-[10px] font-bold px-2.5 py-1 rounded-full bg-[#1e2a3a] text-gray-400 border border-gray-600">{p.badge}</span>
-
-                                        <div className="flex gap-2 flex-shrink-0">
-                                            <button
-                                                onClick={() => setProductModal(p)}
-                                                className="w-8 h-8 rounded-xl bg-[#1e2a3a] border border-gray-600 flex items-center justify-center text-gray-400 hover:text-yellow-400 hover:border-yellow-400/50 transition"
-                                            >
-                                                <FiEdit2 size={14} />
-                                            </button>
-                                            <button
-                                                onClick={() => deleteProduct(p.id)}
-                                                className="w-8 h-8 rounded-xl bg-[#1e2a3a] border border-gray-600 flex items-center justify-center text-gray-400 hover:text-red-400 hover:border-red-400/50 transition"
-                                            >
-                                                <FiTrash2 size={14} />
-                                            </button>
-                                        </div>
-                                    </motion.div>
-                                ))}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* ════ MEMBERS ════ */}
-                    {activeTab === "members" && (
-                        <motion.div key="members" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }}>
-                            <div className="flex justify-between items-center mb-5">
-                                <h2 className="text-white font-black text-xl">จัดการสมาชิก</h2>
-                                <p className="text-gray-500 text-sm">ทั้งหมด {members.length} คน</p>
-                            </div>
-
-                            <div className="space-y-3">
-                                {members.map((m, i) => {
-                                    const memberOrders = orders.filter(o => o.email === m.email);
-                                    return (
-                                    <div key={m.id}>
-                                    <motion.div
-                                        initial={{ opacity: 0, y: 10 }}
-                                        animate={{ opacity: 1, y: 0 }}
-                                        transition={{ delay: i * 0.05 }}
-                                        className="bg-[#243447] rounded-2xl px-5 py-4 flex items-center gap-4 border border-gray-700/50"
-                                    >
-                                        <div className="w-10 h-10 rounded-full bg-[#1e2a3a] border border-gray-600 flex items-center justify-center flex-shrink-0">
-                                            {m.role === "admin"
-                                                ? <FiShield size={16} className="text-yellow-400" />
-                                                : <FiUser size={16} className="text-gray-400" />
-                                            }
-                                        </div>
-
-                                        <div className="flex-1 min-w-0">
-                                            <p className="text-white font-bold text-sm">{m.name}</p>
-                                            <p className="text-gray-500 text-xs">{m.email} · {m.orders} คำสั่งซื้อ</p>
-                                        </div>
-
-                                        {/* Role badge */}
-                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${m.role === "admin" ? "bg-yellow-400/10 text-yellow-400 border-yellow-400/30" : "bg-gray-700/50 text-gray-400 border-gray-600"}`}>
-                                            {m.role === "admin" ? "Admin" : "Member"}
-                                        </span>
-
-                                        {/* Status badge */}
-                                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${m.status === "active" ? "bg-green-400/10 text-green-400 border-green-400/30" : "bg-red-400/10 text-red-400 border-red-400/30"}`}>
-                                            {m.status === "active" ? "Active" : "Inactive"}
-                                        </span>
-
-                                        {/* Actions */}
-                                        <div className="flex gap-2 flex-shrink-0">
-                                            <button
-                                                onClick={() => toggleRole(m.id)}
-                                                className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#1e2a3a] border border-gray-600 text-gray-400 hover:text-yellow-400 hover:border-yellow-400/50 transition whitespace-nowrap"
-                                            >
-                                                {m.role === "admin" ? "→ Member" : "→ Admin"}
-                                            </button>
-                                            <button
-                                                onClick={() => toggleStatus(m.id)}
-                                                className="text-[11px] font-bold px-3 py-1.5 rounded-full bg-[#1e2a3a] border border-gray-600 text-gray-400 hover:text-orange-400 hover:border-orange-400/50 transition whitespace-nowrap"
-                                            >
-                                                {m.status === "active" ? "Deactivate" : "Activate"}
-                                            </button>
-                                            <button
-                                                onClick={() => setSelectedMember(selectedMember?.id === m.id ? null : m)}
-                                                className={`text-[11px] font-bold px-3 py-1.5 rounded-full border transition whitespace-nowrap ${selectedMember?.id === m.id ? "bg-yellow-400/20 text-yellow-400 border-yellow-400/50" : "bg-[#1e2a3a] border-gray-600 text-gray-400 hover:text-yellow-400 hover:border-yellow-400/50"}`}
-                                            >
-                                                ประวัติซื้อ
-                                            </button>
-                                        </div>
-                                    </motion.div>
-
-                                    {/* ── Order History Panel ── */}
-                                    <AnimatePresence>
-                                        {selectedMember?.id === m.id && (
-                                            <motion.div
-                                                initial={{ height: 0, opacity: 0 }}
-                                                animate={{ height: "auto", opacity: 1 }}
-                                                exit={{ height: 0, opacity: 0 }}
-                                                transition={{ duration: 0.25 }}
-                                                className="overflow-hidden"
-                                            >
-                                                <div className="bg-[#1a2333] rounded-2xl mx-1 mb-1 p-4 border border-yellow-400/20">
-                                                    <p className="text-yellow-400 text-xs font-black uppercase tracking-widest mb-3">
-                                                        ประวัติการซื้อของ {m.name}
-                                                    </p>
-                                                    {memberOrders.length === 0 ? (
-                                                        <p className="text-gray-500 text-sm text-center py-4">ยังไม่มีประวัติการซื้อ</p>
-                                                    ) : (
-                                                        <div className="space-y-2">
-                                                            {memberOrders.map(o => {
-                                                                const st = statusConfig[o.status];
-                                                                return (
-                                                                    <div key={o.id} className="flex items-center gap-3 bg-[#243447] rounded-xl px-4 py-3">
-                                                                        <div className="w-8 h-8 rounded-lg bg-[#1e2a3a] flex items-center justify-center flex-shrink-0">
-                                                                            <FiShoppingBag size={13} className="text-yellow-400" />
-                                                                        </div>
-                                                                        <div className="flex-1 min-w-0">
-                                                                            <p className="text-white text-xs font-bold">{o.id}</p>
-                                                                            <p className="text-gray-500 text-[10px]">{o.date} · {o.items} รายการ</p>
-                                                                        </div>
-                                                                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${st.bg} ${st.color}`}>{st.label}</span>
-                                                                        <span className="text-yellow-400 font-black text-xs flex-shrink-0">฿{o.total.toLocaleString()}</span>
-                                                                    </div>
-                                                                );
-                                                            })}
-                                                            <div className="flex justify-between items-center pt-2 border-t border-gray-700/50 mt-2">
-                                                                <p className="text-gray-500 text-xs">{memberOrders.length} คำสั่งซื้อ</p>
-                                                                <p className="text-yellow-400 font-black text-sm">
-                                                                    รวม ฿{memberOrders.reduce((s, o) => s + o.total, 0).toLocaleString()}
-                                                                </p>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </motion.div>
-                                        )}
-                                    </AnimatePresence>
-                                    </div>
-                                    );
-                                })}
-                            </div>
-                        </motion.div>
-                    )}
-
-                    {/* ════ ORDERS ════ */}
-                    {activeTab === "orders" && (
-                        <motion.div key="orders" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} transition={{ duration: 0.25 }}>
-                            <div className="flex justify-between items-center mb-5">
-                                <h2 className="text-white font-black text-xl">คำสั่งซื้อทั้งหมด</h2>
-                                <p className="text-gray-500 text-sm">ทั้งหมด {orders.length} รายการ</p>
-                            </div>
-
-                            <div className="space-y-3">
-                                {orders.map((o, i) => {
-                                    const st = statusConfig[o.status];
-                                    const isOpen = expandedOrder === o.id;
-                                    return (
-                                        <motion.div
-                                            key={o.id}
-                                            initial={{ opacity: 0, y: 10 }}
-                                            animate={{ opacity: 1, y: 0 }}
-                                            transition={{ delay: i * 0.05 }}
-                                            className="bg-[#243447] rounded-2xl overflow-hidden border border-gray-700/50"
-                                        >
-                                            <button
-                                                onClick={() => setExpandedOrder(isOpen ? null : o.id)}
-                                                className="w-full px-5 py-4 flex items-center gap-4 hover:bg-white/5 transition text-left"
-                                            >
-                                                <div className="w-9 h-9 rounded-xl bg-[#1e2a3a] flex items-center justify-center flex-shrink-0">
-                                                    <FiShoppingBag size={15} className="text-yellow-400" />
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <p className="text-white font-bold text-sm">{o.id}</p>
-                                                    <p className="text-gray-500 text-xs">{o.member} · {o.date}</p>
-                                                </div>
-                                                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full border ${st.bg} ${st.color}`}>{st.label}</span>
-                                                <span className="text-yellow-400 font-black text-sm flex-shrink-0">฿{o.total.toLocaleString()}</span>
-                                                <FiChevronDown size={16} className={`text-gray-500 transition-transform flex-shrink-0 ${isOpen ? "rotate-180" : ""}`} />
-                                            </button>
-
-                                            <AnimatePresence>
-                                                {isOpen && (
-                                                    <motion.div
-                                                        initial={{ height: 0, opacity: 0 }}
-                                                        animate={{ height: "auto", opacity: 1 }}
-                                                        exit={{ height: 0, opacity: 0 }}
-                                                        transition={{ duration: 0.2 }}
-                                                        className="overflow-hidden"
-                                                    >
-                                                        <div className="px-5 pb-4 border-t border-gray-700/50 pt-3 space-y-2">
-                                                            <div className="flex justify-between text-xs text-gray-400">
-                                                                <span>อีเมล: {o.email}</span>
-                                                                <span>{o.items} รายการ</span>
-                                                            </div>
-                                                            {/* Change status */}
-                                                            <div className="flex items-center gap-2 mt-2">
-                                                                <span className="text-xs text-gray-500">เปลี่ยนสถานะ:</span>
-                                                                {["pending","processing","delivered"].map(s => (
-                                                                    <button
-                                                                        key={s}
-                                                                        className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition ${o.status === s ? `${statusConfig[s].bg} ${statusConfig[s].color}` : "bg-[#1e2a3a] text-gray-500 border-gray-600 hover:border-gray-400"}`}
-                                                                    >
-                                                                        {statusConfig[s].label}
-                                                                    </button>
-                                                                ))}
-                                                            </div>
-                                                        </div>
-                                                    </motion.div>
-                                                )}
-                                            </AnimatePresence>
-                                        </motion.div>
-                                    );
-                                })}
-                            </div>
-                        </motion.div>
-                    )}
-
-                </AnimatePresence>
-            </div>
-
-            {/* Product Modal */}
-            <AnimatePresence>
-                {productModal && (
-                    <ProductModal
-                        product={productModal === "new" ? null : productModal}
-                        onClose={() => setProductModal(null)}
-                        onSave={handleSaveProduct}
-                    />
-                )}
-            </AnimatePresence>
-        </div>
-    );
+                <form onSubmit={handleSaveProduct} className="space-y-6">
+                     <div className="flex flex-col items-center gap-4 mb-2">
+                        <div onClick={() => productFileInputRef.current?.click()} className="w-32 h-32 rounded-3xl border-2 border-dashed border-black/20 bg-black/5 flex items-center justify-center cursor-pointer hover:bg-black/10 transition-colors overflow-hidden group relative shadow-inner">
+                          {formData.img ? (
+                            <>
+                              <img src={formData.img} className="w-full h-full object-contain p-2" />
+                              <div className="absolute inset-0 bg-black/40 flex items-center justify-center text-white opacity-0 group-hover:opacity-100 transition-opacity"><FiCamera size={24} /></div>
+                            </>
+                          ) : (
+                            <div className="text-center opacity-40"><FiCamera size={32} className="mx-auto mb-2" /><p className="text-[10px] font-black uppercase tracking-widest">Upload Image</p></div>
+                          )}
+                          <input type="file" ref={productFileInputRef} onChange={handleProductImageUpload} accept="image/*" className="hidden" />
+                        </div>
+                     </div>
+                     <div className="grid grid-cols-2 gap-4">
+                       <div className="col-span-2"><label className="block text-[10px] font-black opacity-30 mb-2 uppercase tracking-widest">Product Name</label><input required value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} className="w-full bg-black/5 rounded-2xl px-6 py-4 text-sm font-black" /></div>
+                       <div className="col-span-1"><label className="block text-[10px] font-black opacity-30 mb-2 uppercase tracking-widest">Price (฿)</label><input required type="number" min="0" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} className="w-full bg-black/5 rounded-2xl px-6 py-4 text-sm font-black" /></div>
+                       <div className="col-span-1"><label className="block text-[10px] font-black opacity-30 mb-2 uppercase tracking-widest">Stock</label><input required type="number" min="0" value={formData.stock} onChange={e => setFormData({...formData, stock: e.target.value})} className="w-full bg-black/5 rounded-2xl px-6 py-4 text-sm font-black" /></div>
+                       <div className="col-span-2"><label className="block text-[10px] font-black opacity-30 mb-2 uppercase tracking-widest">Badge</label><select value={formData.badge} onChange={e => setFormData({...formData, badge: e.target.value})} className="w-full bg-black/5 rounded-2xl px-6 py-4 text-sm font-black outline-none"><option>MEN</option><option>WOMEN</option><option>FACULTY</option></select></div>
+                     </div>
+                   <button type="submit" className="w-full py-5 bg-primary text-white rounded-full font-black text-xs shadow-xl shadow-primary/20 tracking-widest uppercase">Save Product Data</button>
+                </form>
+             </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      {/* User Order History Modal */}
+      <AnimatePresence>
+        {viewOrderHistoryFor && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-[40px] w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col shadow-2xl relative">
+               <button onClick={() => setViewOrderHistoryFor(null)} className="absolute top-6 right-6 p-2 bg-black/5 hover:bg-black/10 rounded-full transition-colors z-10"><FiX size={20} /></button>
+               <div className="p-8 border-b border-black/5 bg-[#F8F9FA]">
+                 <h2 className="text-3xl font-black italic tracking-tighter" style={{ color: PRIMARY_DARK }}>ORDER <span className="text-black/20">HISTORY</span></h2>
+                 <p className="text-sm font-bold opacity-50 mt-1 uppercase tracking-widest">{viewOrderHistoryFor.firstName} {viewOrderHistoryFor.lastName} • {viewOrderHistoryFor.email}</p>
+               </div>
+               <div className="p-8 overflow-y-auto flex-1">
+                 {orders.filter(o => o.userId === viewOrderHistoryFor.id).length > 0 ? (
+                    <div className="space-y-4">
+                      {orders.filter(o => o.userId === viewOrderHistoryFor.id).map(order => (
+                         <div key={order.id} className="bg-white p-6 rounded-3xl border border-black/5 shadow-md hover:shadow-lg transition-shadow">
+                           <div className="flex justify-between items-center mb-4 pb-4 border-b border-black/5">
+                              <div>
+                                <span className="px-3 py-1 bg-gold/20 text-gold-dark rounded-full text-[10px] font-black uppercase tracking-widest">{order.status}</span>
+                                <span className="text-xs font-black text-black/40 ml-3">#{order.id}</span>
+                              </div>
+                              <span className="text-xs font-bold text-black/40">{order.date}</span>
+                           </div>
+                           <div className="space-y-3">
+                             {order.items?.map((item, idx) => (
+                               <div key={idx} className="flex gap-4 items-center bg-black/[0.02] p-3 rounded-2xl">
+                                 <div className="w-12 h-12 bg-white rounded-xl p-2 shadow-sm border border-black/5"><img src={item.img} className="w-full h-full object-contain" /></div>
+                                 <div className="flex-1">
+                                   <p className="text-xs font-black text-primary-dark">{item.name}</p>
+                                   <p className="text-[10px] font-bold opacity-40">SIZE: {item.size} • QTY: {item.qty}</p>
+                                 </div>
+                                 <p className="text-sm font-black text-primary">฿{(item.price * item.qty).toLocaleString()}</p>
+                               </div>
+                             ))}
+                           </div>
+                           <div className="mt-4 pt-4 border-t border-black/5 flex justify-between items-center">
+                             <span className="text-xs font-bold text-black/40 uppercase tracking-widest">Total Amount</span>
+                             <span className="text-lg font-black text-primary-dark">฿{order.total?.toLocaleString()}</span>
+                           </div>
+                         </div>
+                      ))}
+                    </div>
+                 ) : (
+                    <div className="h-40 flex flex-col items-center justify-center opacity-40">
+                      <FiBox size={40} className="mb-4" />
+                      <p className="font-black italic text-lg tracking-widest">NO ORDER HISTORY</p>
+                    </div>
+                 )}
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+      {/* Single Order Detail Modal */}
+      <AnimatePresence>
+        {viewSingleOrder && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-md">
+            <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 20 }} className="bg-white rounded-[40px] w-full max-w-2xl overflow-hidden flex flex-col shadow-2xl relative">
+               <button onClick={() => setViewSingleOrder(null)} className="absolute top-6 right-6 p-2 bg-black/5 hover:bg-black/10 rounded-full transition-colors z-10"><FiX size={20} /></button>
+               <div className="p-8 border-b border-black/5 bg-[#F8F9FA]">
+                 <h2 className="text-3xl font-black italic tracking-tighter" style={{ color: PRIMARY_DARK }}>ORDER <span className="text-black/20">DETAILS</span></h2>
+                 <p className="text-sm font-bold opacity-50 mt-1 uppercase tracking-widest">#{viewSingleOrder.id} • {viewSingleOrder.date}</p>
+                 {(() => {
+                    const user = users.find(u => u.id === viewSingleOrder.userId);
+                    const name = viewSingleOrder.customerName || (user ? `${user.firstName} ${user.lastName}` : (viewSingleOrder.userId === "guest" ? "Guest User" : "Deleted User"));
+                    return <p className="text-[10px] font-black italic mt-2 text-primary-dark">PURCHASED BY: {name}</p>;
+                 })()}
+               </div>
+               <div className="p-8 overflow-y-auto max-h-[60vh] bg-white">
+                 <div className="flex justify-between items-center mb-6 pb-4 border-b border-black/5">
+                    <span className="px-3 py-1 bg-gold/20 text-gold-dark rounded-full text-[10px] font-black uppercase tracking-widest">{viewSingleOrder.status}</span>
+                    <span className="text-xs font-black text-black/40">{viewSingleOrder.items?.length || 0} ITEMS</span>
+                 </div>
+                 <div className="space-y-3">
+                   {viewSingleOrder.items?.map((item, idx) => (
+                     <div key={idx} className="flex gap-4 items-center bg-black/[0.02] p-3 rounded-2xl">
+                       <div className="w-12 h-12 bg-white rounded-xl p-2 shadow-sm border border-black/5"><img src={item.img} className="w-full h-full object-contain" /></div>
+                       <div className="flex-1">
+                         <p className="text-xs font-black text-primary-dark">{item.name}</p>
+                         <p className="text-[10px] font-bold opacity-40">SIZE: {item.size} • QTY: {item.qty}</p>
+                       </div>
+                       <p className="text-sm font-black text-primary">฿{(item.price * item.qty).toLocaleString()}</p>
+                     </div>
+                   ))}
+                 </div>
+                 <div className="mt-6 pt-6 border-t border-black/5 flex justify-between items-center">
+                   <span className="text-sm font-black text-black/40 uppercase tracking-widest">Grand Total</span>
+                   <span className="text-2xl font-black text-primary-dark">฿{viewSingleOrder.total?.toLocaleString()}</span>
+                 </div>
+               </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
 }
